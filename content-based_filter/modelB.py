@@ -1,8 +1,10 @@
 import pandas as pd
+import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.model_selection import train_test_split
 from fuzzywuzzy import process
 
 # Load data
@@ -38,10 +40,10 @@ tag_features = pd.DataFrame(tag_features_raw.toarray(), columns=tag_feature_name
 combined_features = pd.concat([pd.DataFrame(genre_features), pd.DataFrame(tag_features)], axis=1)
 
 # Dimensionality reduction (Truncated SVD for sparse data)
-svd = TruncatedSVD(n_components=60)
+svd = TruncatedSVD(n_components=60, random_state=42, n_iter=10) # might need adjustments
 reduced_features = svd.fit_transform(combined_features)
 
-# Cosine similarity
+# Cosine similarity between each movie and the rest
 cosine_sim = cosine_similarity(reduced_features, reduced_features)
 
 # a movie index
@@ -53,6 +55,7 @@ def movie_finder(title):
     closest_match = process.extractOne(title, all_titles)
     return closest_match[0]
 
+# recommendation function
 def get_content_based_recommendations(title_string, n_recommendations=10):
     title = movie_finder(title_string)
     idx = movie_idx[title]
@@ -66,3 +69,9 @@ def get_content_based_recommendations(title_string, n_recommendations=10):
 # Prompt the user for input
 user_input = input("Enter the name of a movie you like: ")
 recommendations = get_content_based_recommendations(user_input, 10)
+
+'''
+TO DO NEXT:
+1. Precision @ K
+2. Recall @ K
+'''
