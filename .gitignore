@@ -2,5 +2,6 @@ proj_venv/
 old_data/
 potentially_useful/
 STEPS.md
-notebookA.ipynb
+*.ipynb
 old/
+test/

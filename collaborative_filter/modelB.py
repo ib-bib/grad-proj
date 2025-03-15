@@ -1,15 +1,13 @@
 import pandas as pd
-import seaborn as sn
-import matplotlib.pyplot as plt
+# import seaborn as sn
+# import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import TruncatedSVD
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics.pairwise import cosine_similarity
+# from sklearn.metrics import mean_squared_error
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import csr_matrix
-from kneed import KneeLocator
+# from kneed import KneeLocator
 from fuzzywuzzy import process
-
 
 # load dataset
 movies_df = pd.read_csv('movies.csv')
