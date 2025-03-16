@@ -1,12 +1,11 @@
 import pandas as pd
-# import seaborn as sn
-# import matplotlib.pyplot as plt
+import seaborn as sn
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import TruncatedSVD
-# from sklearn.metrics import mean_squared_error
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import csr_matrix
-# from kneed import KneeLocator
+from kneed import KneeLocator
 from fuzzywuzzy import process
 
 # load dataset
@@ -38,37 +37,40 @@ X = csr_matrix((ratings_df['rating'], (user_index, movie_index)), shape=(U, M))
 print(X.shape)
 
 # sparsity of matrix
-# n_total = X.shape[0] * X.shape[1] # rows * columns
-# n_ratings = X.nnz # number of non-zero values
-# sparsity = n_ratings / n_total
-# print(f"Matrix sparsity: {round(sparsity * 100, 2)}%")
+n_total = X.shape[0] * X.shape[1] # rows * columns
+n_ratings = X.nnz # number of non-zero values
+sparsity = n_ratings / n_total
+print(f"Matrix sparsity: {round(sparsity * 100, 2)}%")
 
-# Finding the optimal number of components using the explained variance method
+# Finding the first optimal number of components using the explained variance method
 # ratio of variance as a function of the number of components
-# explained_variances = []
-# components_range = range(1, 101, 5) # from 1 to 100 components, incrementing by 5
-# for n in components_range:
-#     svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
-#     svd.fit_transform(X.T)
-#     explained_variances.append(np.sum(svd.explained_variance_ratio_))
+errors = []
+components_range = range(5, 100, 5) # Test components from 5 to 100
+for n in components_range:
+    svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
+    H = svd.fit_transform(X.T)
+    W = svd.components_
+    reconstructed_X = np.dot(W.T, H.T)
+    error = np.linalg.norm(X.toarray() - reconstructed_X, ord='fro')  # Frobenius norm
+    errors.append(error)
 
-# Find the elbow automatically
-# knee_locator = KneeLocator(components_range, explained_variances, curve='concave', direction='increasing')
-# optimal_n = knee_locator.knee  # Automatically chosen elbow
-# print(f'Optimal number of components: {optimal_n}') # output was 26 components
+# Find elbow point automatically
+knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
+optimal_n = knee_locator.knee
+print(f'Optimal number of components: {optimal_n}') # output was 35
 
-# # Plot the elbow curve
-# plt.figure(figsize=(8, 5))
-# plt.plot(components_range, explained_variances, marker='o')
-# # Highlight the elbow point
-# plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
-# # Dashed line at elbow
-# plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
-# plt.xlabel('Number of Components')
-# plt.xlabel('Explained Variance')
-# plt.title('Explained Variance vs Number of Components')
-# plt.grid()
-# plt.show()
+# Plot the elbow curve
+plt.figure(figsize=(8, 5))
+plt.plot(components_range, errors, marker='o')
+# Highlight the elbow point
+plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
+# Dashed line at elbow
+plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
+plt.xlabel('Number of Components')
+plt.xlabel('Explained Variance')
+plt.title('Explained Variance vs Number of Components')
+plt.grid()
+plt.show()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # fuzzywuzzy search function
@@ -101,7 +103,7 @@ def find_similar_movies(movie_id, matrix, movie_mapper, inv_movie_mapper, k=10, 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#  
 
 # Matrix Factorization using the optimal n of components
-svd = TruncatedSVD(n_components=30, random_state=42, n_iter=10) # rounding 26 to 30 components
+svd = TruncatedSVD(n_components=35, random_state=42, n_iter=10) # hard-coded 35 components
 Q = svd.fit_transform(X.T) # orthogonal matrix to our original; T puts movies in rows => M X F (features)
 print(Q.shape)
 

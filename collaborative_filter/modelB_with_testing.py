@@ -173,23 +173,49 @@ print(f'MAE after ~ 20% of ratings were tested: {mean_absolute_error(test_rating
 # Root Mean Square Error
 print(f'RMSE after ~ 20% of ratings were tested: {root_mean_square_error(test_ratings, predictions):.2f}')
 
-# Testing out the model's recommendations
-movie_title = "Harry Potter"
-title = movie_finder(movie_title)
-movie_id_dict = dict(zip(movies_df['title'], movies_df['movieId']))
-movie_id = movie_id_dict[title]
-similar_movies = find_similar_movies(movie_id, M_comp_mtrx.T, movie_mapper, inv_movie_mapper, k=10, metric='cosine') # transpose because function expects U X M matrix
+# # Testing out the model's recommendations
+# movie_title = "Harry Potter"
+# title = movie_finder(movie_title)
+# movie_id_dict = dict(zip(movies_df['title'], movies_df['movieId']))
+# movie_id = movie_id_dict[title]
+# similar_movies = find_similar_movies(movie_id, M_comp_mtrx.T, movie_mapper, inv_movie_mapper, k=10, metric='cosine') # transpose because function expects U X M matrix
 
-# map movie titles to movie IDs
-movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
+# # map movie titles to movie IDs
+# movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
 
-for i in similar_movies:
-    print(movie_titles[i])
+# for i in similar_movies:
+#     print(movie_titles[i])
 
-# Precision@10
-# Take the top users who have reviewed the most movies, take first 10 movies from each one
-# recommend 10 movies for them based on them, so out of the next 100 movies see which ones are relevant
+# Precision@40 for the top power users:
 
-# Recall@10
+# Number of users to evaluate
+num_users = 10
+num_movies_per_user = 10
+# Find the top users who have rated the most movies (descending from highest rating downwards)
+user_rating_counts = ratings_df.groupby('userId').size().sort_values(ascending=False)
+top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
 
-# F1 Score
+precision_values = []
+
+# Iterate through each top user
+for user_id in top_users:
+    # Get all movies rated by this user
+    user_ratings = ratings_df[ratings_df['userId'] == user_id]
+    top_movies = user_ratings.head(num_movies_per_user)['movieId'].tolist()  # First 10 movies
+
+    # Get recommended movies
+    recommended_movies = set()
+
+    for movie_id in top_movies:
+        similar_movies = find_similar_movies(movie_id, M_comp_mtrx.T, movie_mapper, inv_movie_mapper, k=40, metric='cosine')
+        recommended_movies.update(similar_movies)  # Add recommendations to set
+
+    # Get relevant movies (rated 4 or above by the user)
+    relevant_movies = set(user_ratings[user_ratings['rating'] >= 3.5]['movieId'])
+
+    # Compute precision
+    prec = precision(recommended_movies, relevant_movies)
+    precision_values.append(prec)
+
+mean_average_precision = np.mean(precision_values)
+print(f"Mean average precision@{num_movies_per_user} of the top {num_users} power users is {mean_average_precision:.4f}")
