@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import math
 from sklearn.decomposition import TruncatedSVD, NMF
 from sklearn.neighbors import NearestNeighbors
@@ -7,7 +8,6 @@ from scipy.sparse import csr_matrix
 from scipy.special import expit  # Sigmoid function
 from fuzzywuzzy import process
 from kneed import KneeLocator
-from collections import defaultdict
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
@@ -77,7 +77,14 @@ def precision(recommended_items, relevant_items):
     return precision_value
 
 # Recall
+def recall(recommended_items, relevant_items):
+    true_positives = len(set(recommended_items).intersection(set(relevant_items)))
+    total_relevant_items = len(relevant_items)
 
+    recall_value = true_positives / total_relevant_items if total_relevant_items > 0 else 0
+    return recall_value
+
+# def f1_score
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
@@ -105,7 +112,6 @@ movie_index = [movie_mapper[i] for i in ratings_df['movieId']]
 
 # compressed sparse row matrix (utility matrix)
 X = csr_matrix((ratings_df['rating'], (user_index, movie_index)), shape=(U, M))
-X = X.tolil()  # Convert to LIL format for efficient modifications
 
 X_arr = X.toarray()
 
@@ -114,42 +120,51 @@ test_ratings = []
 
 for i, user in enumerate(X_arr):
     nonzero_coords = []
-    nnz = np.count_nonzero(user) # Ratings which are not 0
-    twenty_percent = math.floor(0.2 * nnz) # # Select ~20% for testing
+    nnz = np.count_nonzero(user)
     for j, rating in enumerate(user):
-        if rating > 0 and len(nonzero_coords) < twenty_percent:
+        if rating > 0:
             nonzero_coords.append([i, j])
             test_ratings.append(rating)
-            X[i, j] = 0
-        if len(nonzero_coords) == twenty_percent:
+        if len(nonzero_coords) == nnz:
             break
     test_data_coords.append(nonzero_coords)
 
 X_arr = None
-X = X.tocsr()  # Convert back to CSR format for efficient operations
 
 # print(len(test_ratings))
 # print(f'Shape of data: {X.shape}') # (610 users, 9724 movies)
 
-# # Finding the first optimal number of components using the explained variance method
-# # ratio of variance as a function of the number of components
+# Optimize n_components using RMSE
 # errors = []
-# components_range = range(5, 100, 5) # Test components from 5 to 100
+# components_range = range(5, 100, 5)
 # for n in components_range:
 #     svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
 #     H = svd.fit_transform(X.T)
 #     W = svd.components_
 #     reconstructed_X = np.dot(W.T, H.T)
-#     error = np.linalg.norm(X.toarray() - reconstructed_X, ord='fro')  # Frobenius norm
-#     errors.append(error)
+#     flat_test_data_coords = [coord for sublist in test_data_coords for coord in sublist]
+#     predictions = [reconstructed_X[i, j] for i, j in flat_test_data_coords]
+#     errors.append(root_mean_square_error(test_ratings, predictions))
 
-# # Find elbow point automatically
+# # Find optimal components using RMSE knee point
 # knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
 # optimal_n = knee_locator.knee
-# print(f'Optimal number of components: {optimal_n}') # output was 35
+# print(f'Optimal number of components: {optimal_n}')
+
+# # Plot RMSE curve
+# plt.figure(figsize=(8, 5))
+# plt.plot(components_range, errors, marker='o', label='RMSE')
+# plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Optimal n={optimal_n}')
+# plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
+# plt.xlabel('Number of Components')
+# plt.ylabel('RMSE')
+# plt.title('RMSE as a function of the number of components')
+# plt.legend()
+# plt.grid()
+# plt.show()
 
 # Matrix Factorization using the optimal n of components
-svd = TruncatedSVD(n_components=35, random_state=42, n_iter=10) # hard-coded 35
+svd = TruncatedSVD(n_components=30, random_state=42, n_iter=10)
 M_comp_mtrx = svd.fit_transform(X.T) # movies x latent features (9274 movies, 26 components)
 U_comp_mtrx = svd.components_ # latent features (of the movies) x users (26 x 610)
 
@@ -168,54 +183,52 @@ for i in range(len(test_data_coords)):
         predictions.append(reconstructed_X[x, y])
 
 # Mean Absolute Error
-print(f'MAE after ~ 20% of ratings were tested: {mean_absolute_error(test_ratings, predictions):.2f}')
+print(f'MAE: {mean_absolute_error(test_ratings, predictions):.2f}')
 
 # Root Mean Square Error
-print(f'RMSE after ~ 20% of ratings were tested: {root_mean_square_error(test_ratings, predictions):.2f}')
+print(f'RMSE: {root_mean_square_error(test_ratings, predictions):.2f}')
 
-# # Testing out the model's recommendations
-# movie_title = "Harry Potter"
-# title = movie_finder(movie_title)
-# movie_id_dict = dict(zip(movies_df['title'], movies_df['movieId']))
-# movie_id = movie_id_dict[title]
-# similar_movies = find_similar_movies(movie_id, M_comp_mtrx.T, movie_mapper, inv_movie_mapper, k=10, metric='cosine') # transpose because function expects U X M matrix
-
-# # map movie titles to movie IDs
-# movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
-
-# for i in similar_movies:
-#     print(movie_titles[i])
-
-# Precision@40 for the top power users:
-
+# Precision@10 for the top 10 power users:
 # Number of users to evaluate
 num_users = 10
+# Number of movies whose rating is larger than 4 which we get
 num_movies_per_user = 10
+k = 30
 # Find the top users who have rated the most movies (descending from highest rating downwards)
 user_rating_counts = ratings_df.groupby('userId').size().sort_values(ascending=False)
 top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
 
 precision_values = []
+recall_values = []
+# map movie titles to movie IDs
+movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
 
 # Iterate through each top user
 for user_id in top_users:
     # Get all movies rated by this user
     user_ratings = ratings_df[ratings_df['userId'] == user_id]
-    top_movies = user_ratings.head(num_movies_per_user)['movieId'].tolist()  # First 10 movies
+    top_movies = user_ratings[user_ratings['rating'] >= 4].head(num_movies_per_user)['movieId'].tolist()  # First n movies
 
     # Get recommended movies
-    recommended_movies = set()
+    recommended_movies = []
 
     for movie_id in top_movies:
-        similar_movies = find_similar_movies(movie_id, M_comp_mtrx.T, movie_mapper, inv_movie_mapper, k=40, metric='cosine')
-        recommended_movies.update(similar_movies)  # Add recommendations to set
+        similar_movies = find_similar_movies(movie_id, M_comp_mtrx.T, movie_mapper, inv_movie_mapper, k=k, metric='cosine')
+        for similar_movie_id in similar_movies:
+            recommended_movies.append(similar_movie_id)  # Add recommendations to list
 
     # Get relevant movies (rated 4 or above by the user)
-    relevant_movies = set(user_ratings[user_ratings['rating'] >= 3.5]['movieId'])
+    relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId']
 
     # Compute precision
     prec = precision(recommended_movies, relevant_movies)
+    rec = recall(recommended_movies, relevant_movies)
     precision_values.append(prec)
+    recall_values.append(rec)
 
 mean_average_precision = np.mean(precision_values)
-print(f"Mean average precision@{num_movies_per_user} of the top {num_users} power users is {mean_average_precision:.4f}")
+print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_average_precision:.4f}")
+
+mean_average_recall = np.mean(recall_values)
+print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_average_recall:.4f}")
+

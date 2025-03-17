@@ -1,5 +1,4 @@
 import pandas as pd
-import seaborn as sn
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import TruncatedSVD
@@ -42,8 +41,6 @@ n_ratings = X.nnz # number of non-zero values
 sparsity = n_ratings / n_total
 print(f"Matrix sparsity: {round(sparsity * 100, 2)}%")
 
-# Finding the first optimal number of components using the explained variance method
-# ratio of variance as a function of the number of components
 errors = []
 components_range = range(5, 100, 5) # Test components from 5 to 100
 for n in components_range:
@@ -67,8 +64,8 @@ plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='blac
 # Dashed line at elbow
 plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
 plt.xlabel('Number of Components')
-plt.xlabel('Explained Variance')
-plt.title('Explained Variance vs Number of Components')
+plt.xlabel('Error')
+plt.title('Frobenius error plot as a function of the number of components')
 plt.grid()
 plt.show()
 
@@ -108,7 +105,7 @@ Q = svd.fit_transform(X.T) # orthogonal matrix to our original; T puts movies in
 print(Q.shape)
 
 # Testing out the model's recommendations
-movie_title = "Harry Potter"
+movie_title = "Toy Story"
 title = movie_finder(movie_title)
 movie_id_dict = dict(zip(movies_df['title'], movies_df['movieId']))
 movie_id = movie_id_dict[title]
