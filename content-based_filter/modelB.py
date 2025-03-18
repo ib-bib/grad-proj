@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
@@ -39,12 +38,8 @@ tag_features = pd.DataFrame(tag_features_raw.toarray(), columns=tag_feature_name
 # Combine genres and tag features
 combined_features = pd.concat([pd.DataFrame(genre_features), pd.DataFrame(tag_features)], axis=1)
 
-# Dimensionality reduction (Truncated SVD for sparse data)
-svd = TruncatedSVD(n_components=60, random_state=42, n_iter=10) # might need adjustments
-reduced_features = svd.fit_transform(combined_features)
-
 # Cosine similarity between each movie and the rest
-cosine_sim = cosine_similarity(reduced_features, reduced_features)
+cosine_sim = cosine_similarity(combined_features, combined_features)
 
 # a movie index
 movie_idx = dict(zip(movies['title'], list(movies.index)))
@@ -68,10 +63,14 @@ def get_content_based_recommendations(title_string, n_recommendations=10):
 
 # Prompt the user for input
 user_input = input("Enter the name of a movie you like: ")
-recommendations = get_content_based_recommendations(user_input, 10)
+recommendations = get_content_based_recommendations(user_input, 20)
 
 '''
-TO DO NEXT:
-1. Precision @ K
-2. Recall @ K
+TI DI:
+1. Process movie genres
+2. Process movie titles
+3. Process tags
+4. Cluster movies together
+5. Cosine similarity amongst movies within the same cluster
+6. Save the model
 '''

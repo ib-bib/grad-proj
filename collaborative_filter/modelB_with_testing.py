@@ -232,3 +232,13 @@ print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_a
 mean_average_recall = np.mean(recall_values)
 print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_average_recall:.4f}")
 
+f1_score = 2 * (mean_average_precision * mean_average_recall) / (mean_average_precision + mean_average_recall)
+print(f"F1-Score {f1_score}")
+
+'''
+TO DO:
+1. Save model to be retrieved from file system easily
+2. Build pipeline to incorporate new ratings of movies
+3. Retrain model with new ratings
+4. When combined with content-based, use bayesian average rating to sort recommendations
+'''
