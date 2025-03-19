@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import math
 from sklearn.decomposition import TruncatedSVD, NMF
 from sklearn.neighbors import NearestNeighbors
+from sklearn.metrics import classification_report
+from sklearn.pipeline import Pipeline
 from scipy.sparse import csr_matrix
 from scipy.special import expit  # Sigmoid function
 from fuzzywuzzy import process
@@ -169,7 +171,7 @@ M_comp_mtrx = svd.fit_transform(X.T) # movies x latent features (9274 movies, 26
 U_comp_mtrx = svd.components_ # latent features (of the movies) x users (26 x 610)
 
 # reconstructing the matrix to create our predictions
-ndarr_reconstruct_X = np.dot(U_comp_mtrx.T, M_comp_mtrx.T)
+ndarr_reconstruct_X = np.dot(U_comp_mtrx.T, M_comp_mtrx.T) # dot product function returns numpy ndarray
 # sigmoid transformation (upper bound=5, lower bound=0.5)
 sigmoid_reconstruct_X = expit(ndarr_reconstruct_X) * 4.5 + 0.5
 reconstructed_X = csr_matrix(sigmoid_reconstruct_X)
@@ -188,10 +190,10 @@ print(f'MAE: {mean_absolute_error(test_ratings, predictions):.2f}')
 # Root Mean Square Error
 print(f'RMSE: {root_mean_square_error(test_ratings, predictions):.2f}')
 
-# Precision@10 for the top 10 power users:
+# Precision@k for the top power users:
 # Number of users to evaluate
 num_users = 10
-# Number of movies whose rating is larger than 4 which we get
+# Number of movies whose rating is >= 3.5 which we get
 num_movies_per_user = 10
 k = 30
 # Find the top users who have rated the most movies (descending from highest rating downwards)
@@ -207,7 +209,7 @@ movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
 for user_id in top_users:
     # Get all movies rated by this user
     user_ratings = ratings_df[ratings_df['userId'] == user_id]
-    top_movies = user_ratings[user_ratings['rating'] >= 4].head(num_movies_per_user)['movieId'].tolist()  # First n movies
+    top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()  # First n movies
 
     # Get recommended movies
     recommended_movies = []
@@ -217,7 +219,7 @@ for user_id in top_users:
         for similar_movie_id in similar_movies:
             recommended_movies.append(similar_movie_id)  # Add recommendations to list
 
-    # Get relevant movies (rated 4 or above by the user)
+    # Get relevant movies (rated 3.5 or above by the user)
     relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId']
 
     # Compute precision
@@ -241,4 +243,6 @@ TO DO:
 2. Build pipeline to incorporate new ratings of movies
 3. Retrain model with new ratings
 4. When combined with content-based, use bayesian average rating to sort recommendations
+5. Pipeline : Split (80/20) => TruncatedSVD => NN (unsupervised) => Test => Classification Report
+6. Experiment with Surprise
 '''

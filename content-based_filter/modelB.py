@@ -4,6 +4,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 from fuzzywuzzy import process
 
 # Load data
@@ -66,7 +67,7 @@ user_input = input("Enter the name of a movie you like: ")
 recommendations = get_content_based_recommendations(user_input, 20)
 
 '''
-TI DI:
+TO DO:
 1. Process movie genres
 2. Process movie titles
 3. Process tags
