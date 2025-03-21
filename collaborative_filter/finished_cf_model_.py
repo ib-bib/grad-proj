@@ -2,10 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from sklearn.decomposition import TruncatedSVD, NMF
+from sklearn.decomposition import TruncatedSVD
 from sklearn.neighbors import NearestNeighbors
-from sklearn.metrics import classification_report
-from sklearn.pipeline import Pipeline
 from scipy.sparse import csr_matrix
 from scipy.special import expit  # Sigmoid function
 from fuzzywuzzy import process
@@ -86,8 +84,6 @@ def recall(recommended_items, relevant_items):
     recall_value = true_positives / total_relevant_items if total_relevant_items > 0 else 0
     return recall_value
 
-# def f1_score
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # load dataset
@@ -123,11 +119,13 @@ test_ratings = []
 for i, user in enumerate(X_arr):
     nonzero_coords = []
     nnz = np.count_nonzero(user)
+    twenty_percent_of_nnz = math.ceil(0.2 * nnz) # taking 20 percent of each user's ratings only for testing
     for j, rating in enumerate(user):
         if rating > 0:
             nonzero_coords.append([i, j])
+            X[i, j] = 0 # masking value to not have model trained on it
             test_ratings.append(rating)
-        if len(nonzero_coords) == nnz:
+        if len(nonzero_coords) == twenty_percent_of_nnz:
             break
     test_data_coords.append(nonzero_coords)
 
@@ -137,21 +135,21 @@ X_arr = None
 # print(f'Shape of data: {X.shape}') # (610 users, 9724 movies)
 
 # Optimize n_components using RMSE
-# errors = []
-# components_range = range(5, 100, 5)
-# for n in components_range:
-#     svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
-#     H = svd.fit_transform(X.T)
-#     W = svd.components_
-#     reconstructed_X = np.dot(W.T, H.T)
-#     flat_test_data_coords = [coord for sublist in test_data_coords for coord in sublist]
-#     predictions = [reconstructed_X[i, j] for i, j in flat_test_data_coords]
-#     errors.append(root_mean_square_error(test_ratings, predictions))
+errors = []
+components_range = range(5, 100, 5)
+for n in components_range:
+    svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
+    H = svd.fit_transform(X.T)
+    W = svd.components_
+    reconstructed_X = np.dot(W.T, H.T)
+    flat_test_data_coords = [coord for sublist in test_data_coords for coord in sublist]
+    predictions = [reconstructed_X[i, j] for i, j in flat_test_data_coords]
+    errors.append(root_mean_square_error(test_ratings, predictions))
 
-# # Find optimal components using RMSE knee point
-# knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
-# optimal_n = knee_locator.knee
-# print(f'Optimal number of components: {optimal_n}')
+# Find optimal components using RMSE knee point
+knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
+optimal_n = knee_locator.knee
+print(f'Optimal number of components: {optimal_n}')
 
 # # Plot RMSE curve
 # plt.figure(figsize=(8, 5))
@@ -166,7 +164,7 @@ X_arr = None
 # plt.show()
 
 # Matrix Factorization using the optimal n of components
-svd = TruncatedSVD(n_components=30, random_state=42, n_iter=10)
+svd = TruncatedSVD(n_components=optimal_n, random_state=42, n_iter=10) # hard-coded 30 components (elbow point)
 M_comp_mtrx = svd.fit_transform(X.T) # movies x latent features (9274 movies, 26 components)
 U_comp_mtrx = svd.components_ # latent features (of the movies) x users (26 x 610)
 
@@ -176,7 +174,7 @@ ndarr_reconstruct_X = np.dot(U_comp_mtrx.T, M_comp_mtrx.T) # dot product functio
 sigmoid_reconstruct_X = expit(ndarr_reconstruct_X) * 4.5 + 0.5
 reconstructed_X = csr_matrix(sigmoid_reconstruct_X)
 
-# predictions array for those 20% masked values
+# predictions array to be used in evaluation
 predictions = []
 for i in range(len(test_data_coords)):
     for j in range(len(test_data_coords[i])):
@@ -193,9 +191,10 @@ print(f'RMSE: {root_mean_square_error(test_ratings, predictions):.2f}')
 # Precision@k for the top power users:
 # Number of users to evaluate
 num_users = 10
-# Number of movies whose rating is >= 3.5 which we get
+# Number of movies whose rating is >= 3.5 which we get to generate recommendations
 num_movies_per_user = 10
-k = 30
+# Number of recommendations we generate
+k = 20
 # Find the top users who have rated the most movies (descending from highest rating downwards)
 user_rating_counts = ratings_df.groupby('userId').size().sort_values(ascending=False)
 top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
@@ -228,21 +227,17 @@ for user_id in top_users:
     precision_values.append(prec)
     recall_values.append(rec)
 
-mean_average_precision = np.mean(precision_values)
-print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_average_precision:.4f}")
+mean_precision = np.mean(precision_values)
+print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_precision:.4f}")
 
-mean_average_recall = np.mean(recall_values)
-print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_average_recall:.4f}")
+mean_recall = np.mean(recall_values)
+print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_recall:.4f}")
 
-f1_score = 2 * (mean_average_precision * mean_average_recall) / (mean_average_precision + mean_average_recall)
-print(f"F1-Score {f1_score}")
+f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
+print(f"F1-Score {f1_score:.4f}")
 
 '''
 TO DO:
 1. Save model to be retrieved from file system easily
-2. Build pipeline to incorporate new ratings of movies
-3. Retrain model with new ratings
-4. When combined with content-based, use bayesian average rating to sort recommendations
-5. Pipeline : Split (80/20) => TruncatedSVD => NN (unsupervised) => Test => Classification Report
-6. Experiment with Surprise
+2. Compute Bayesian Average rating for each movie and save it
 '''

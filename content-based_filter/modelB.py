@@ -11,19 +11,26 @@ from fuzzywuzzy import process
 movies = pd.read_csv('movies.csv')
 tags = pd.read_csv('tags.csv')
 
-# preprocess the genres
+# preprocess the genres => turn into array
 movies['genres'] = movies['genres'].str.split('|')
 
 # one-hot encoding of genres
 all_genres = set(g for genre_list in movies['genres'] for g in genre_list)
+print(all_genres)
 # print(f'Number of genres in our data: {len(all_genres)}')
 for genre in all_genres:
     movies[genre] = movies['genres'].apply(lambda x: 1 if genre in x else 0)
 genre_features = movies[list(all_genres)]
 
+# print(genre_features)
+
+print(tags['tag'].value_counts())
+
 # combine tags left by each user for each movie
 tags['tag'] = tags['tag'].str.lower()
 tags_grouped_by_movie_id = tags.groupby('movieId')['tag'].apply(lambda x: ' '.join(x)).reset_index()
+
+# print(tags_grouped_by_movie_id.head())
 
 # merge tags data with movie data
 movies_with_tags = movies.merge(tags_grouped_by_movie_id, on='movieId', how='left')
@@ -62,16 +69,13 @@ def get_content_based_recommendations(title_string, n_recommendations=10):
     print(f"Because you watched {title}:")
     print(movies['title'].iloc[similar_movies])
 
-# Prompt the user for input
-user_input = input("Enter the name of a movie you like: ")
-recommendations = get_content_based_recommendations(user_input, 20)
+# # Prompt the user for input
+# user_input = input("Enter the name of a movie you like: ")
+# recommendations = get_content_based_recommendations(user_input, 20)
 
 '''
 TO DO:
 1. Process movie genres
-2. Process movie titles
-3. Process tags
-4. Cluster movies together
-5. Cosine similarity amongst movies within the same cluster
-6. Save the model
+2. Process tags
+3. Save the model
 '''
