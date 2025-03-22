@@ -8,6 +8,7 @@ from scipy.sparse import csr_matrix
 from scipy.special import expit  # Sigmoid function
 from fuzzywuzzy import process
 from kneed import KneeLocator
+import pickle
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
@@ -111,57 +112,75 @@ movie_index = [movie_mapper[i] for i in ratings_df['movieId']]
 # compressed sparse row matrix (utility matrix)
 X = csr_matrix((ratings_df['rating'], (user_index, movie_index)), shape=(U, M))
 
-X_arr = X.toarray()
+# calculating bayesian average rating for each movie
+movie_stats = ratings_df.groupby('movieId')['rating'].agg(['count', 'mean'])
+C = movie_stats['count'].mean()
+m = movie_stats['mean'].mean()
 
+def bayesian_avg(ratings):
+    bayesian_avg = (C*m+ratings.sum())/(C+ratings.count())
+    return round(bayesian_avg, 2)
+
+bayesian_avg_ratings = ratings_df.groupby('movieId')['rating'].agg(bayesian_avg).reset_index()
+bayesian_avg_ratings.columns = ['movieId', 'bayesian_avg']
+movie_stats = movie_stats.merge(bayesian_avg_ratings, on='movieId')
+movie_stats = movie_stats.merge(movies_df[['movieId', 'title']])
+
+# movie_stats.to_csv('movie_stats.csv')
+
+# preparing for training-test split
+X_arr = X.toarray()
 test_data_coords = []
 test_ratings = []
 
 for i, user in enumerate(X_arr):
     nonzero_coords = []
-    nnz = np.count_nonzero(user)
+    nnz = np.count_nonzero(user) # number of ratings the user submitted
     twenty_percent_of_nnz = math.ceil(0.2 * nnz) # taking 20 percent of each user's ratings only for testing
     for j, rating in enumerate(user):
         if rating > 0:
             nonzero_coords.append([i, j])
-            X[i, j] = 0 # masking value to not have model trained on it
+            movie_id = inv_movie_mapper[j]
+            movie_bayesian_avg = movie_stats[movie_stats['movieId'] == movie_id]['bayesian_avg']
+            X[i, j] = movie_bayesian_avg # masking value with bayesian average rating of that movie
+            # this increases MAE and RMSE (reconstruction error) but higher precision and recall than masking with 0
             test_ratings.append(rating)
         if len(nonzero_coords) == twenty_percent_of_nnz:
             break
     test_data_coords.append(nonzero_coords)
 
-X_arr = None
-
 # print(len(test_ratings))
 # print(f'Shape of data: {X.shape}') # (610 users, 9724 movies)
 
-# Optimize n_components using RMSE
+# Optimize n_components using Frobenius norm
 errors = []
-components_range = range(5, 100, 5)
+components_range = range(5, 100, 5) # Test components from 5 to 100
 for n in components_range:
     svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
     H = svd.fit_transform(X.T)
     W = svd.components_
     reconstructed_X = np.dot(W.T, H.T)
-    flat_test_data_coords = [coord for sublist in test_data_coords for coord in sublist]
-    predictions = [reconstructed_X[i, j] for i, j in flat_test_data_coords]
-    errors.append(root_mean_square_error(test_ratings, predictions))
+    error = np.linalg.norm(X_arr - reconstructed_X, ord='fro')  # Frobenius norm of reconstruction error
+    errors.append(error)
 
-# Find optimal components using RMSE knee point
+X_arr = None
+# Find elbow point automatically
 knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
 optimal_n = knee_locator.knee
-print(f'Optimal number of components: {optimal_n}')
+print(f'Optimal number of components: {optimal_n}') # output was 35
 
-# # Plot RMSE curve
-# plt.figure(figsize=(8, 5))
-# plt.plot(components_range, errors, marker='o', label='RMSE')
-# plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Optimal n={optimal_n}')
-# plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
-# plt.xlabel('Number of Components')
-# plt.ylabel('RMSE')
-# plt.title('RMSE as a function of the number of components')
-# plt.legend()
-# plt.grid()
-# plt.show()
+# Plot the elbow curve
+plt.figure(figsize=(8, 5))
+plt.plot(components_range, errors, marker='o')
+# Highlight the elbow point
+plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
+# Dashed line at elbow
+plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
+plt.ylabel('Frobenius Norm')
+plt.xlabel('Components')
+plt.title('Elbow graph for optimal number of latent')
+plt.grid()
+plt.show()
 
 # Matrix Factorization using the optimal n of components
 svd = TruncatedSVD(n_components=optimal_n, random_state=42, n_iter=10) # hard-coded 30 components (elbow point)
@@ -236,8 +255,19 @@ print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_reca
 f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
 print(f"F1-Score {f1_score:.4f}")
 
-'''
-TO DO:
-1. Save model to be retrieved from file system easily
-2. Compute Bayesian Average rating for each movie and save it
-'''
+# Save the trained model components and mappings
+model_data = {
+    "U_comp_mtrx": U_comp_mtrx,  # User feature matrix
+    "M_comp_mtrx": M_comp_mtrx,  # Movie feature matrix
+    "movie_mapper": movie_mapper,
+    "inv_movie_mapper": inv_movie_mapper,
+    "user_mapper": user_mapper,
+    "inv_user_mapper": inv_user_mapper,
+    "optimal_n": optimal_n  # Best number of components
+}
+
+# Save to disk
+with open("collaborative_filtering_model.pkl", "wb") as f:
+    pickle.dump(model_data, f)
+
+print("Model saved successfully!")

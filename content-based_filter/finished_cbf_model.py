@@ -1,11 +1,13 @@
 import pandas as pd
 import re
+import numpy as np
+import pickle
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from fuzzywuzzy import process
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+from sklearn.neighbors import NearestNeighbors
 
 
 # ~~~~~~~~~~~~~~~~~~~ #
@@ -57,6 +59,8 @@ for genre in all_genres:
     movies[genre] = movies['genres'].apply(lambda x: 1 if genre in x else 0)
 
 genre_features = movies[list(all_genres)] # one-hot encoded matrix
+# Save one-hot encoded genre matrix to CSV
+genre_features.to_csv("one_hot_encoded_genres.csv", index=False)
 
 # third: process the tags
 # remove stopwords
@@ -67,7 +71,9 @@ custom_stopwords = {"movie", "film", "like", "scene", "story", "character", "goo
 stop_words.update(custom_stopwords)
 
 # Initialize Lemmatizer
-lemmatizer = WordNetLemmatizer() # preserves meaning
+lemmatizer = WordNetLemmatizer()
+# we aren't using a stemmer as well because stemming aggressively cuts words down to their root
+# sometimes leading to confusing/incorrect mappings like "boxing" => "box" {boxing day, music box, boxing gloves}
 
 # Preprocessing function for tags
 def clean_tag(tag):
@@ -77,20 +83,39 @@ def clean_tag(tag):
     words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]  # Lemmatization & stopword removal
     return " ".join(words)  # Keep phrases (multiple words) after lemmatization and stemming
 
-# print(tags[tags['movieId'] == 60756].head())
 tags['tag'] = tags['tag'].apply(clean_tag)
-# print(tags[tags['movieId'] == 60756].head())
 tags_grouped_by_movie_id = tags.groupby('movieId')['tag'].apply(lambda x: ' '.join(x)).reset_index()
-# print(tags_grouped_by_movie_id[tags_grouped_by_movie_id['movieId'] == 60756].head()) # faces some issues with people's names like will ferrell will just tbe categorized as ferrell
 
 # Merge preprocessed tags with movies
 movies_with_tags = movies.merge(tags_grouped_by_movie_id, on='movieId', how='left')
 movies_with_tags['tag'] = movies_with_tags['tag'].fillna('') # ensure shape and order of features data aligns with movies
 
 # TF-IDF Vectorizer
-tfidf_vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(3, 3))  # Min n-grams and Max n-grams
+tfidf_vectorizer = TfidfVectorizer(
+    analyzer='word', 
+    ngram_range=(1, 3),   # Min n-grams and Max n-grams
+    max_df=0.95,          # Ignore very frequent words
+    dtype=np.float32,     # Reduce memory usage
+    sublinear_tf=True     # Smooth term frequency scaling
+    )  
 tag_features_raw = tfidf_vectorizer.fit_transform(movies_with_tags['tag'])
 tag_features = pd.DataFrame(tag_features_raw.toarray(), index=movies.index)
+
+print(tag_features.shape)
+
+# Extract feature names (words/phrases from TF-IDF)
+feature_names = tfidf_vectorizer.get_feature_names_out()
+# Convert TF-IDF feature matrix to DataFrame
+tfidf_df = pd.DataFrame(tag_features_raw.toarray(), columns=feature_names)
+# Save the extracted TF-IDF features as CSV
+# tfidf_df.to_csv("tfidf_features.csv", index=False)
+
+# Sum occurrences of each feature across all movies
+feature_counts = tfidf_df.sum(axis=0).sort_values(ascending=False)
+# Convert to DataFrame for easier analysis
+feature_counts_df = pd.DataFrame({'Feature': feature_counts.index, 'Count': feature_counts.values})
+# Save feature occurrences to CSV
+feature_counts_df.to_csv("tfidf_feature_counts.csv", index=False)
 
 # combine features
 combined_features = pd.concat([genre_features, tag_features], axis=1)
@@ -98,6 +123,10 @@ cosine_sim = cosine_similarity(combined_features, combined_features)
 
 # movie index => title:index in dataframe
 movie_idx = dict(zip(movies['title'], list(movies.index)))
+# map movie titles to movie IDs
+movie_titles = dict(zip(movies['movieId'], movies['title']))
+# map movie IDs to movie titles
+movie_ids_dict = dict(zip(movies['title'], movies['movieId']))
 
 
 # Precision@k for the top power users:
@@ -113,10 +142,6 @@ top_users = user_rating_counts.index[:num_users]  # Get top N users with most ra
 
 precision_values = []
 recall_values = []
-# map movie titles to movie IDs
-movie_titles = dict(zip(movies['movieId'], movies['title']))
-# map movie IDs to movie titles
-movie_ids_dict = dict(zip(movies['title'], movies['movieId']))
 
 # Iterate through each top user
 for user_id in top_users:
@@ -149,3 +174,15 @@ print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_reca
 
 f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
 print(f"F1-Score {f1_score:.4f}")
+
+# Save the vectorizer, similarity matrix, and mappings
+with open("content_based_filtering_model.pkl", "wb") as f:
+    pickle.dump({
+        "tfidf_vectorizer": tfidf_vectorizer,
+        "cosine_sim": cosine_sim,
+        "movie_idx": movie_idx,
+        "movie_titles": movie_titles,
+        "movie_ids_dict": movie_ids_dict
+    }, f)
+
+print("Model saved successfully!")
