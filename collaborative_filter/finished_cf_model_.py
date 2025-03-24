@@ -88,8 +88,8 @@ def recall(recommended_items, relevant_items):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # load dataset
-movies_df = pd.read_csv('movies.csv')
-ratings_df = pd.read_csv('ratings.csv')
+movies_df = pd.read_csv('../data/movies.csv')
+ratings_df = pd.read_csv('../data/ratings.csv')
 
 # number of users
 U = ratings_df['userId'].nunique()
