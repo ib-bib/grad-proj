@@ -5,3 +5,5 @@ STEPS.md
 *.ipynb
 old/
 test/
+*.pyc
+__pycache__/

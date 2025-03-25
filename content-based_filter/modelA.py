@@ -4,7 +4,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from fuzzywuzzy import process
 
 # load the dataset, since we're only concerned with movie content, this is all we care about
-movies = pd.read_csv('movies.csv')
+movies = pd.read_csv('./data/movies.csv')
 
 # dictionary to map movie titles to their IDs, will be used later in the code
 movie_idx = dict(zip(movies['title'], list(movies.index)))

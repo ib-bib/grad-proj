@@ -6,8 +6,8 @@ from fuzzywuzzy import process
 from scipy.sparse import csr_matrix
 
 # Load the data
-ratings = pd.read_csv('ratings.csv')
-movies = pd.read_csv('movies.csv')
+ratings = pd.read_csv('./data/ratings.csv')
+movies = pd.read_csv('./data/movies.csv')
 
 # Create a user-item utility matrix using the ratings
 def createMatrix(df: pd.DataFrame):

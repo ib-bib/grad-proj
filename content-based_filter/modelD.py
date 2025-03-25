@@ -8,9 +8,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 from fuzzywuzzy import process
 
 # ---------------- LOAD DATA ----------------
-movies = pd.read_csv('movies.csv')
-tags = pd.read_csv('tags.csv')
-ratings = pd.read_csv('ratings.csv')
+movies = pd.read_csv('./data/movies.csv')
+tags = pd.read_csv('./data/tags.csv')
+ratings = pd.read_csv('./data/ratings.csv')
 
 # ---------------- GENRES PROCESSING ----------------
 movies['genres'] = movies['genres'].str.split('|')

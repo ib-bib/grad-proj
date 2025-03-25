@@ -8,8 +8,8 @@ from sklearn.pipeline import Pipeline
 from fuzzywuzzy import process
 
 # Load data
-movies = pd.read_csv('movies.csv')
-tags = pd.read_csv('tags.csv')
+movies = pd.read_csv('./data/movies.csv')
+tags = pd.read_csv('./data/tags.csv')
 
 # preprocess the genres => turn into array
 movies['genres'] = movies['genres'].str.split('|')
