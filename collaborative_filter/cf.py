@@ -39,17 +39,13 @@ def find_similar_movies(movie_id, matrix, movie_mapper, inv_movie_mapper, k=5):
 # accuracy metrics
 # MAE
 def mean_absolute_error(actual, predictions):
-    if len(actual) != len(predictions):
-        raise ValueError('The length of the actual ratings must be equal to the length of the predictions')
+    actual = np.array(actual)
+    predictions = np.array(predictions)
     
-    n = len(actual)
-    total_error = 0
-
-    for i in range(n):
-        total_error += abs(actual[i] - predictions[i])
-
-    mae = total_error / n
-    return mae
+    if actual.shape != predictions.shape:
+        raise ValueError("Shapes of actual and predicted ratings must match.")
+    
+    return np.mean(np.abs(actual - predictions))
 
 # RMSE
 def root_mean_square_error(actual, predictions):
@@ -146,9 +142,6 @@ for i, user in enumerate(X_arr):
             break
     test_data_coords.append(nonzero_coords)
 
-# print(len(test_ratings))
-# print(f'Shape of data: {X.shape}') # (610 users, 9724 movies)
-
 # Optimize n_components using Frobenius norm
 errors = []
 components_range = range(5, 100, 5) # Test components from 5 to 100
@@ -157,7 +150,7 @@ for n in components_range:
     H = svd.fit_transform(X.T)
     W = svd.components_
     reconstructed_X = np.dot(W.T, H.T)
-    error = np.linalg.norm(X_arr - reconstructed_X, ord='fro')  # Frobenius norm of reconstruction error
+    error = np.linalg.norm(X - reconstructed_X, ord='fro')  # Frobenius norm of reconstruction error
     errors.append(error)
 
 X_arr = None

@@ -5,10 +5,10 @@ from sklearn.neighbors import NearestNeighbors
 from fuzzywuzzy import process
 
 # Load models
-with open("./collaborative_filter/collaborative_filtering_model.pkl", "rb") as f:
+with open("./collaborative_filter/cf.pkl", "rb") as f:
     cf_model = pickle.load(f)
 
-with open("./content-based_filter/content_based_filtering_model.pkl", "rb") as f:
+with open("./content-based_filter/cbf.pkl", "rb") as f:
     cbf_model = pickle.load(f)
 
 # Load movies dataset
@@ -70,7 +70,7 @@ def adjust_weights(feedback, cf_weight, cbf_weight):
     return cf_weight, cbf_weight
 
 # Example Usage
-movie_title = "Toy Story (1995)"
+movie_title = "Harry Potter"
 cf_weight = 0.5
 cbf_weight = 0.5
 
