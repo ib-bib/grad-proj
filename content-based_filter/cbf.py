@@ -1,7 +1,9 @@
-import pandas as pd
 import re
-import numpy as np
 import pickle
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -21,14 +23,14 @@ def movie_finder(title):
 def get_content_based_recommendations(title_string, n_recommendations=10):
     title = movie_finder(title_string)
     idx = movie_idx[title]
-    _, indices = knn_model.kneighbors(sparse_combined_features[idx], n_neighbors=n_recommendations + 1)
+    movie_vec = sparse_features[idx]
+
+    if isinstance(movie_vec, (np.ndarray)):
+        movie_vec = movie_vec.reshape(1,-1)
+
+    _, indices = knn_model.kneighbors(movie_vec, n_neighbors=n_recommendations + 1)
     similar_movies = indices.flatten()[1:]  # Exclude itself (index 0)
     return movies['title'].iloc[similar_movies]
-    # sim_scores = list(enumerate(cosine_sim[idx]))
-    # sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-    # sim_scores = sim_scores[1:(n_recommendations+1)]
-    # similar_movies = [i[0] for i in sim_scores]
-    # return (movies['title'].iloc[similar_movies])
 
 # Precision
 def precision(recommended_items, relevant_items):
@@ -52,6 +54,15 @@ def recall(recommended_items, relevant_items):
 movies = pd.read_csv('../data/movies.csv')
 tags = pd.read_csv('../data/tags.csv')
 ratings = pd.read_csv('../data/ratings.csv') # will be used in testing
+
+# movie index => title:index in dataframe
+movie_idx = dict(zip(movies['title'], list(movies.index)))
+# movie index => title:index in dataframe
+movie_idx_titles = dict(zip(list(movies.index), movies['title'],))
+# map movie IDs to movie titles
+movie_titles = dict(zip(movies['movieId'], movies['title']))
+# map movie titles to movie IDs
+movie_ids = dict(zip(movies['title'], movies['movieId']))
 
 # second: extract the genres from the movies and one-hot encode genres
 movies['genres'] = movies['genres'].str.split('|')
@@ -86,21 +97,39 @@ def clean_tag(tag):
     words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]  # Lemmatization & stopword removal
     return " ".join(words)  # Keep phrases (multiple words) after lemmatization and stemming
 
+# applying lemmatization on tags
 tags['tag'] = tags['tag'].apply(clean_tag)
 tags_grouped_by_movie_id = tags.groupby('movieId')['tag'].apply(lambda x: ' '.join(x)).reset_index()
 
+# custom dataframe applying lemmatization on movie titles
+processed_titles_grouped_by_id = pd.DataFrame({
+    'movieId': movies['movieId'],
+    'processed_title': movies['title'].apply(clean_tag)
+})
+
 # Merge preprocessed tags with movies
 movies_with_tags = movies.merge(tags_grouped_by_movie_id, on='movieId', how='left')
-movies_with_tags['tag'] = movies_with_tags['tag'].fillna('') # ensure shape and order of features data aligns with movies
+
+# Ensure 'tag' exists before merging
+movies_with_tags['tag'] = movies_with_tags['tag'].fillna('')
+
+# Merge the processed titles
+movies_with_tags = movies_with_tags.merge(processed_titles_grouped_by_id, on='movieId', how='left')
+
+# Ensure 'processed_title' exists and has no NaN values
+movies_with_tags['processed_title'] = movies_with_tags['processed_title'].fillna('')
+
+# Combine tags and processed titles for TF-IDF processing
+movies_with_tags['combined_text'] = movies_with_tags['tag'] + ' ' + movies_with_tags['processed_title']
 
 # TF-IDF Vectorizer
 tfidf_vectorizer = TfidfVectorizer(
-    analyzer='word', 
-    ngram_range=(3, 3),   # Min n-grams and Max n-grams => limiting to 3 increases precision & recall
+    analyzer='word',
+    ngram_range=(2, 3),   # Min n-grams and Max n-grams => 2,3 gives a good range to handle titles and genres
     max_df=0.95,          # Ignore very frequent words
     dtype=np.float32,     # Reduce memory usage
     sublinear_tf=True     # Smooth term frequency scaling
-    )  
+    ) 
 tag_features_raw = tfidf_vectorizer.fit_transform(movies_with_tags['tag'])
 tag_features = pd.DataFrame(tag_features_raw.toarray(), index=movies.index)
 
@@ -129,13 +158,6 @@ sparse_features = csr_matrix(sparse_combined_features)
 knn_model = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=20)
 knn_model.fit(sparse_features)
 
-# movie index => title:index in dataframe
-movie_idx = dict(zip(movies['title'], list(movies.index)))
-# map movie titles to movie IDs
-movie_titles = dict(zip(movies['movieId'], movies['title']))
-# map movie IDs to movie titles
-movie_ids_dict = dict(zip(movies['title'], movies['movieId']))
-
 
 # Precision@k for the top power users:
 # Number of users to evaluate
@@ -163,7 +185,7 @@ recall_values = []
 #     for movie_id in top_movies:
 #         similar_movies = get_content_based_recommendations(movie_titles[movie_id], k)
 #         for similar_movie in similar_movies:
-#             recommended_movies_ids.append(movie_ids_dict[similar_movie])  # Add recommendations to list
+#             recommended_movies_ids.append(movie_ids[similar_movie])  # Add recommendations to list
 
 #     # Get relevant movies (rated 3.5 or above by the user)
 #     relevant_movies_ids = user_ratings[user_ratings['rating'] >= 3.5]['movieId']
@@ -183,9 +205,9 @@ def process_user(user_id):
     recommended_movies_ids = []
     for movie_id in top_movies:
         similar_movies = get_content_based_recommendations(movie_titles[movie_id], k)
-        recommended_movies_ids.extend([movie_ids_dict[similar_movie] for similar_movie in similar_movies])
+        recommended_movies_ids.extend([movie_ids[similar_movie] for similar_movie in similar_movies])
 
-    relevant_movies_ids = user_ratings[user_ratings['rating'] >= 3.5]['movieId']
+    relevant_movies_ids = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].to_list()
 
     return precision(recommended_movies_ids, relevant_movies_ids), recall(recommended_movies_ids, relevant_movies_ids)
 
@@ -211,7 +233,9 @@ with open("content_based_filtering_model.pkl", "wb") as f:
         "knn_model": knn_model,
         "movie_idx": movie_idx,
         "movie_titles": movie_titles,
-        "movie_ids_dict": movie_ids_dict
+        "movie_ids": movie_ids,
+        "movie_idx_to_title": movie_idx_titles,
+        "sparse_features": sparse_features
     }, f)
 
 print("Model saved successfully!")

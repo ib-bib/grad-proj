@@ -24,6 +24,7 @@ def find_similar_movies(movie_id, matrix, movie_mapper, inv_movie_mapper, k=5):
     neighborIDs = []
     movie_ind = movie_mapper[movie_id] # get index of movie in matrix
     movie_vec = matrix[movie_ind] # single vector; one row from the matrix; one movie
+
     if isinstance(movie_vec, (np.ndarray)):
         movie_vec = movie_vec.reshape(1, -1) # convert to 2D to comply with sklearn function
 
@@ -142,38 +143,38 @@ for i, user in enumerate(X_arr):
             break
     test_data_coords.append(nonzero_coords)
 
-# Optimize n_components using Frobenius norm
-errors = []
-components_range = range(5, 100, 5) # Test components from 5 to 100
-for n in components_range:
-    svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
-    H = svd.fit_transform(X.T)
-    W = svd.components_
-    reconstructed_X = np.dot(W.T, H.T)
-    error = np.linalg.norm(X - reconstructed_X, ord='fro')  # Frobenius norm of reconstruction error
-    errors.append(error)
-
 X_arr = None
-# Find elbow point automatically
-knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
-optimal_n = knee_locator.knee
-print(f'Optimal number of components: {optimal_n}') # output was 35
+# Optimize n_components using Frobenius norm
+# errors = []
+# components_range = range(5, 100, 5) # Test components from 5 to 100
+# for n in components_range:
+#     svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
+#     H = svd.fit_transform(X.T)
+#     W = svd.components_
+#     reconstructed_X = np.dot(W.T, H.T)
+#     error = np.linalg.norm(X - reconstructed_X, ord='fro')  # Frobenius norm of reconstruction error
+#     errors.append(error)
 
-# Plot the elbow curve
-plt.figure(figsize=(8, 5))
-plt.plot(components_range, errors, marker='o')
-# Highlight the elbow point
-plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
-# Dashed line at elbow
-plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
-plt.ylabel('Frobenius Norm')
-plt.xlabel('Components')
-plt.title('Elbow graph for optimal number of latent')
-plt.grid()
-plt.show()
+# # Find elbow point automatically
+# knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
+# optimal_n = knee_locator.knee
+# print(f'Optimal number of components: {optimal_n}') # output was 35
+
+# # Plot the elbow curve
+# plt.figure(figsize=(8, 5))
+# plt.plot(components_range, errors, marker='o')
+# # Highlight the elbow point
+# plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
+# # Dashed line at elbow
+# plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
+# plt.ylabel('Frobenius Norm')
+# plt.xlabel('Components')
+# plt.title('Elbow graph for optimal number of latent')
+# plt.grid()
+# plt.show()
 
 # Matrix Factorization using the optimal n of components
-svd = TruncatedSVD(n_components=optimal_n, random_state=42, n_iter=10) # hard-coded 30 components (elbow point)
+svd = TruncatedSVD(n_components=35, random_state=42, n_iter=10) # hard-coded 35 components (elbow point)
 M_comp_mtrx = svd.fit_transform(X.T) # movies x latent features (9274 movies, 26 components)
 U_comp_mtrx = svd.components_ # latent features (of the movies) x users (26 x 610)
 
@@ -232,7 +233,7 @@ for user_id in top_users:
             recommended_movies.append(similar_movie_id)  # Add recommendations to list
 
     # Get relevant movies (rated 3.5 or above by the user)
-    relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId']
+    relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].to_list()
 
     # Compute precision
     prec = precision(recommended_movies, relevant_movies)
@@ -251,14 +252,10 @@ print(f"F1-Score {f1_score:.4f}")
 
 # Save the trained model components and mappings
 model_data = {
-    "U_comp_mtrx": U_comp_mtrx,  # User feature matrix
     "M_comp_mtrx": M_comp_mtrx,  # Movie feature matrix
     "knn": kNN, # nearest neighbors
     "movie_mapper": movie_mapper,
     "inv_movie_mapper": inv_movie_mapper,
-    "user_mapper": user_mapper,
-    "inv_user_mapper": inv_user_mapper,
-    "optimal_n": optimal_n  # Best number of components
 }
 
 # Save to disk
