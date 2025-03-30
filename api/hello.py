@@ -1,3 +1,4 @@
+import math
 from flask import Flask
 from fuzzywuzzy import process
 # from markupsafe import escape
@@ -7,99 +8,96 @@ import pickle
 
 app = Flask(__name__)
 
-movies = pd.read_csv('../data/movies.csv')
-all_titles = movies['title'].tolist()
-
 cf_model = None
 cbf_model = None
 
-cf_weight = 6
-cbf_weight = 12 - cf_weight
+cf_weight = 6.0
+cbf_weight = 12.0 - cf_weight
 
-with open('../collaborative_filter/collaborative_filtering_model.pkl', 'rb') as f:
+hybrid_recs = set()
+
+with open('../collaborative_filter/cf_model.pkl', 'rb') as f:
     cf_model = pickle.load(f)
 
-with open('../content-based_filter/content_based_filtering_model.pkl', 'rb') as f:
+with open('../content-based_filter/cbf_model.pkl', 'rb') as f:
     cbf_model = pickle.load(f)
 
-def fuzzy_wuzzy_search(title):
-    closest_match = process.extractOne(title, all_titles)
-    actual_title = closest_match[0]
-    movie_id = cbf_model['movie_ids'][actual_title]
-    return [actual_title, movie_id]
+all_titles = list(cbf_model['title_idx'].keys())
 
 @app.route("/")
 def hello_world():
     return {"hello": "world"}
 
 @app.route("/search/<movie>")
-def search(movie):
-    res = fuzzy_wuzzy_search(movie)
-    return {"movie_name": res[0], "movie_id": res[1]}
+def search(movie) -> dict[str, int]:
+    closest_match = process.extractOne(movie, all_titles)
+    actual_title = closest_match[0]
+    movie_id = int(cbf_model['title_id'][actual_title])
+    return {"movie_title": actual_title, "movie_id": movie_id}
 
 @app.route("/cf/<movie>")
 def get_cf_recs(movie):
     recommendations = []
-    title, id = fuzzy_wuzzy_search(movie)
-    idx = cf_model['movie_mapper'][id]
-    vec = cf_model['M_comp_mtrx'][idx]
+    actual_movie = search(movie)
+    title = actual_movie['movie_title']
+    id = actual_movie['movie_id']
+    idx = cf_model['id_idx'][id]
+    vec = cf_model['matrix'][idx]
     if isinstance(vec, (np.ndarray)):
         vec = vec.reshape(1,-1)
-    neighbors = cf_model['knn'].kneighbors(vec, return_distance=False, n_neighbors=cf_weight)
-    for i in range(1, cf_weight):
+    neighbors = cf_model['knn'].kneighbors(vec, return_distance=False, n_neighbors=math.ceil(cf_weight))
+    for i in range(1, math.ceil(cf_weight)):
         rec_idx = neighbors.item(i)
-        rec_id = cf_model['inv_movie_mapper'][rec_idx]
-        movie = cbf_model['movie_titles'][rec_id]
-        recommendations.append(movie)
+        rec_id = int(cf_model['idx_id'][rec_idx])
+        rec_title = cbf_model['id_title'][rec_id]
+        recommendations.append({"rec_title": rec_title, "rec_id": rec_id})
 
-    return {"movie": title, "recommendations": recommendations}
+    return {"movie": title, "recommendations": recommendations, "model": "cf"}
 
 @app.route("/cbf/<movie>")
-def get_cbf_recs(movie):
+def get_cbf_recs(movie) -> dict[str, list]:
     recommendations = []
-    title = fuzzy_wuzzy_search(movie)[0]
-    idx = cbf_model['movie_idx'][title]
-    vec = cbf_model['sparse_features'][idx]
+    actual_movie = search(movie)
+    title = actual_movie['movie_title']
+    idx = cbf_model['title_idx'][title]
+    vec = cbf_model['matrix'][idx]
     if isinstance(vec, (np.ndarray)):
         vec = vec.reshape(1,-1)
-    neighbors = cbf_model['knn_model'].kneighbors(vec, return_distance=False, n_neighbors=cbf_weight)
-    for i in range(cbf_weight):
+    neighbors = cbf_model['knn'].kneighbors(vec, return_distance=False, n_neighbors=math.ceil(cbf_weight))
+    for i in range(math.ceil(cbf_weight)):
         rec_idx = neighbors.item(i)
         if idx == rec_idx:
             continue
-        movie = cbf_model['movie_idx_to_title'][rec_idx]
-        recommendations.append(movie)
+        rec_title = cbf_model['idx_title'][rec_idx]
+        rec_id = int(cbf_model['title_id'][rec_title])
+        recommendations.append({"rec_title": rec_title, "rec_id": rec_id})
 
-    return {"movie": title, "recommendations": recommendations}
+    return {"movie": title, "recommendations": recommendations, "model": "cbf"}
 
 @app.route("/recommend/<movie>")
 def get_hybrid_recs(movie):
+    global hybrid_recs
     cf_recs = get_cf_recs(movie)
-    cbf_recs = get_cbf_recs(movie)['recommendations']
-    return {"movie": cf_recs['movie'], "cf": cf_recs['recommendations'], "cbf": cbf_recs}
+    cbf_recs = get_cbf_recs(movie)
+    hybrid_recs = set(cf_recs['recommendations']) | set(cbf_recs['recommendations'])
+    return {"movie": cf_recs['movie'], "cf": cf_recs['recommendations'], "cbf": cbf_recs['recommendations']}
 
 @app.route("/like/<model>/<int:movie_id>")
 def like_model_recommendation(model, movie_id: int):
-    movie = str(movies[movies['movieId'] == movie_id]['title'][1])
+    global cf_weight, cbf_weight
+    title = cbf_model['id_title'][movie_id]
     if model == "cf":
-        return {"model": "Collaborative Filtering", "movie": movie}
+        if cf_weight < 10:
+            cf_weight = cf_weight + 0.2
     elif model == "cbf":
-        return {"model": "Content-based Filtering", "movie": movie}
+        if cf_weight > 2:
+            cf_weight = cf_weight - 0.2
     else:
         return {"Error": "Tried to tamper with API request"}
-    
-# @app.route("/dislike")
-# @app.route("/like/<model>/")
-# def like_model(model):
-#     if model == "cf":
-#         return {"model": "Collaborative Filtering"}
-#     elif model == "cbf":
-#         return {"model": "Content-based Filtering"}
-#     else:
-#         return {"Error": "Tried to tamper with API request"}
-
-
-# @app.route("/like/<int:movie_id>")
-# def like_recommendation(movie_id: int):
-#     movie = movies[movies['movieId'] == movie_id]['title']
-#     return {"movie": str(movie)}
+    cbf_weight = 12 - cf_weight
+    return {
+        "model": "Collaborative Filtering" if model == "cf" else "Content-based Filtering",
+        "movie": title,
+        "cf_weight": cf_weight,
+        "cbf_weight": cbf_weight
+        }

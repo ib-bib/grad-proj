@@ -250,16 +250,16 @@ print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_reca
 f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
 print(f"F1-Score {f1_score:.4f}")
 
-# Save the trained model components and mappings
+# Save the trained model, feature matrix and mappings
 model_data = {
-    "M_comp_mtrx": M_comp_mtrx,  # Movie feature matrix
-    "knn": kNN, # nearest neighbors
-    "movie_mapper": movie_mapper,
-    "inv_movie_mapper": inv_movie_mapper,
+    "knn": kNN,
+    "id_idx": movie_mapper,
+    "idx_id": inv_movie_mapper,
+    "matrix": M_comp_mtrx
 }
 
 # Save to disk
-with open("collaborative_filtering_model.pkl", "wb") as f:
+with open("cf_model.pkl", "wb") as f:
     pickle.dump(model_data, f)
 
 print("Model saved successfully!")

@@ -22,7 +22,7 @@ def movie_finder(title):
 # retrieve similar movies
 def get_content_based_recommendations(title_string, n_recommendations=10):
     title = movie_finder(title_string)
-    idx = movie_idx[title]
+    idx = movie_titles_idx[title]
     movie_vec = sparse_features[idx]
 
     if isinstance(movie_vec, (np.ndarray)):
@@ -55,14 +55,18 @@ movies = pd.read_csv('../data/movies.csv')
 tags = pd.read_csv('../data/tags.csv')
 ratings = pd.read_csv('../data/ratings.csv') # will be used in testing
 
-# movie index => title:index in dataframe
-movie_idx = dict(zip(movies['title'], list(movies.index)))
-# movie index => title:index in dataframe
+# movie title => index
+movie_titles_idx = dict(zip(movies['title'], list(movies.index)))
+# movie index => title
 movie_idx_titles = dict(zip(list(movies.index), movies['title'],))
 # map movie IDs to movie titles
 movie_titles = dict(zip(movies['movieId'], movies['title']))
 # map movie titles to movie IDs
 movie_ids = dict(zip(movies['title'], movies['movieId']))
+# movie id to idx
+movie_ids_idx = dict(zip(movies['movieId'], list(movies.index)))
+# movie idx to id
+movie_idx_ids = dict(zip(list(movies.index), movies['movieId']))
 
 # second: extract the genres from the movies and one-hot encode genres
 movies['genres'] = movies['genres'].str.split('|')
@@ -125,20 +129,21 @@ movies_with_tags['combined_text'] = movies_with_tags['tag'] + ' ' + movies_with_
 # TF-IDF Vectorizer
 tfidf_vectorizer = TfidfVectorizer(
     analyzer='word',
-    ngram_range=(2, 3),   # Min n-grams and Max n-grams => 2,3 gives a good range to handle titles and genres
+    ngram_range=(2, 3),   # Min n-grams and Max n-grams 
+    # 2, 3 gives a good range to handle combos of titles and genres. Decent precision & recall scores
     max_df=0.95,          # Ignore very frequent words
     dtype=np.float32,     # Reduce memory usage
     sublinear_tf=True     # Smooth term frequency scaling
     ) 
-tag_features_raw = tfidf_vectorizer.fit_transform(movies_with_tags['tag'])
-tag_features = pd.DataFrame(tag_features_raw.toarray(), index=movies.index)
+processed_features_raw = tfidf_vectorizer.fit_transform(movies_with_tags['combined_text'])
+processed_features = pd.DataFrame(processed_features_raw.toarray(), index=movies.index)
 
-print(tag_features.shape)
+print(processed_features.shape)
 
 # Extract feature names (words/phrases from TF-IDF)
 feature_names = tfidf_vectorizer.get_feature_names_out()
 # Convert TF-IDF feature matrix to DataFrame
-tfidf_df = pd.DataFrame(tag_features_raw.toarray(), columns=feature_names)
+tfidf_df = pd.DataFrame(processed_features_raw.toarray(), columns=feature_names)
 # Save the extracted TF-IDF features as CSV
 # tfidf_df.to_csv("tfidf_features.csv", index=False)
 
@@ -151,7 +156,7 @@ feature_counts_df.to_csv("tfidf_feature_counts.csv", index=False)
 
 # combine features
 # combined_features = pd.concat([genre_features, tag_features], axis=1)
-sparse_combined_features = hstack([csr_matrix(genre_features), csr_matrix(tag_features)])
+sparse_combined_features = hstack([csr_matrix(genre_features), csr_matrix(processed_features)])
 # cosine_sim = cosine_similarity(combined_features, combined_features)
 sparse_features = csr_matrix(sparse_combined_features)
 # Fit Nearest Neighbors model (faster than cosine_similarity on full matrix)
@@ -226,16 +231,20 @@ print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_reca
 f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
 print(f"F1-Score {f1_score:.4f}")
 
-# Save the vectorizer, similarity matrix, and mappings
-with open("content_based_filtering_model.pkl", "wb") as f:
-    pickle.dump({
-        "tfidf_vectorizer": tfidf_vectorizer,
-        "knn_model": knn_model,
-        "movie_idx": movie_idx,
-        "movie_titles": movie_titles,
-        "movie_ids": movie_ids,
-        "movie_idx_to_title": movie_idx_titles,
-        "sparse_features": sparse_features
-    }, f)
+# Save the trained model, feature matrix and mappings
+model_data = {
+    "knn": knn_model,
+    "title_idx": movie_titles_idx,
+    "idx_title": movie_idx_titles,
+    "id_title": movie_titles,
+    "title_id": movie_ids,
+    "id_idx": movie_ids_idx,
+    "idx_id": movie_idx_ids,
+    "matrix": sparse_features
+}
+
+# Save to disk
+with open("cbf_model.pkl", "wb") as f:
+    pickle.dump(model_data, f)
 
 print("Model saved successfully!")
