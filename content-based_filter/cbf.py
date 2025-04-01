@@ -2,8 +2,6 @@ import re
 import pickle
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -129,8 +127,8 @@ movies_with_tags['combined_text'] = movies_with_tags['tag'] + ' ' + movies_with_
 # TF-IDF Vectorizer
 tfidf_vectorizer = TfidfVectorizer(
     analyzer='word',
-    ngram_range=(2, 3),   # Min n-grams and Max n-grams 
-    # 2, 3 gives a good range to handle combos of titles and genres. Decent precision & recall scores
+    ngram_range=(1,2),   # Min n-grams and Max n-grams
+    # 1, 2 is sufficient to cover a decent range of title combos and tags left by users
     max_df=0.95,          # Ignore very frequent words
     dtype=np.float32,     # Reduce memory usage
     sublinear_tf=True     # Smooth term frequency scaling
