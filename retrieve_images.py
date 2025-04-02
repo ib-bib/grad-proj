@@ -5,7 +5,7 @@ from PIL import Image
 from io import BytesIO
 
 # OMDB API Settings
-OMDB_API_KEY = ""  # Use your actual API key
+OMDB_API_KEY = os.getenv("OMDB_API_KEY")  # Use your actual API key
 OMDB_URL = "http://www.omdbapi.com/"
 BATCH_SIZE = 1000  # Number of posters to fetch per day
 

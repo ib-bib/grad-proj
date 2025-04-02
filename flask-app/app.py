@@ -1,13 +1,42 @@
 import math
-from flask import Flask, request, jsonify
-from fuzzywuzzy import process
-# from markupsafe import escape
 import pickle
+import os
+from flask import Flask, jsonify
+from io import BytesIO
+from fuzzywuzzy import process
+from supabase import create_client
+
+
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_API_KEY)
+
+bucket_name = "models"
+
+def load_model_from_supabase(file_path: str):
+    response = supabase.storage.from_(bucket_name).download(file_path)
+    if response:
+        print(f"Successfully fetched {file_path}")
+        model = pickle.load(BytesIO(response))
+        return model
+    else:
+        print(f"Failed to fetch {file_path}")
+        return None
+
+
+cf_model = load_model_from_supabase("cf_model.pkl")
+cbf_model = load_model_from_supabase("cbf_model.pkl")
+
+
+if cf_model:
+    print("Collaborative Filtering model loaded!")
+if cbf_model:
+    print("Content-based Filtering model loaded!")
+
 
 app = Flask(__name__)
-
-cf_model = None
-cbf_model = None
 
 cf_weight = 6.0
 cbf_weight = 12.0 - cf_weight
@@ -15,12 +44,6 @@ cbf_weight = 12.0 - cf_weight
 latest_cf_recs = []
 latest_cbf_recs = []
 liked = []
-
-with open('cf_model.pkl', 'rb') as f:
-    cf_model = pickle.load(f)
-
-with open('cbf_model.pkl', 'rb') as f:
-    cbf_model = pickle.load(f)
 
 all_titles = list(cbf_model['title_idx'].keys())
 
@@ -39,7 +62,7 @@ def search(movie) -> dict[str, int]:
 def get_cf_recs(movie):
     global latest_cf_recs
     recommendations = []
-    actual_movie = search(movie)
+    actual_movie = search(movie).get_json()
     title = actual_movie['movie_title']
     id = actual_movie['movie_id']
     idx = cf_model['id_idx'][id]
@@ -59,7 +82,7 @@ def get_cf_recs(movie):
 def get_cbf_recs(movie) -> dict[str, list]:
     global latest_cbf_recs
     recommendations = []
-    actual_movie = search(movie)
+    actual_movie = search(movie).get_json()
     title = actual_movie['movie_title']
     idx = cbf_model['title_idx'][title]
     vec = cbf_model['matrix'][idx]
@@ -78,8 +101,8 @@ def get_cbf_recs(movie) -> dict[str, list]:
 
 @app.route("/recommend/<movie>", methods=['GET'])
 def get_hybrid_recs(movie):
-    cf_recs = get_cf_recs(movie)
-    cbf_recs = get_cbf_recs(movie)
+    cf_recs = get_cf_recs(movie).get_json()
+    cbf_recs = get_cbf_recs(movie).get_json()
     return jsonify({
         "movie": cf_recs['movie'], 
         "cf": cf_recs['recommendations'], 
