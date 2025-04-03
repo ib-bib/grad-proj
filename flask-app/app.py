@@ -4,30 +4,39 @@ import os
 from flask import Flask, jsonify
 from io import BytesIO
 from fuzzywuzzy import process
-from supabase import create_client
+# from supabase import create_client
 
 
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
+# SUPABASE_URL = os.getenv("SUPABASE_URL")
+# SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_API_KEY)
+# supabase = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
-bucket_name = "models"
+# bucket_name = "models"
 
-def load_model_from_supabase(file_path: str):
-    response = supabase.storage.from_(bucket_name).download(file_path)
-    if response:
-        print(f"Successfully fetched {file_path}")
-        model = pickle.load(BytesIO(response))
-        return model
-    else:
-        print(f"Failed to fetch {file_path}")
-        return None
+# def load_model_from_supabase(file_path: str):
+#     response = supabase.storage.from_(bucket_name).download(file_path)
+#     if response:
+#         print(f"Successfully fetched {file_path}")
+#         model = pickle.load(BytesIO(response))
+#         return model
+#     else:
+#         print(f"Failed to fetch {file_path}")
+#         return None
 
 
-cf_model = load_model_from_supabase("cf_model.pkl")
-cbf_model = load_model_from_supabase("cbf_model.pkl")
+# cf_model = load_model_from_supabase("cf_model.pkl")
+# cbf_model = load_model_from_supabase("cbf_model.pkl")
+
+cf_model = None
+cbf_model = None
+
+with open("cf_model.pkl") as f:
+    cf = pickle.load(f)
+
+with open("cbf_model.pkl") as f:
+    cbf = pickle.load(f)
 
 
 if cf_model:
