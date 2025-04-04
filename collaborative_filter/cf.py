@@ -135,15 +135,14 @@ for i, user in enumerate(X_arr):
         if rating > 0:
             nonzero_coords.append([i, j])
             movie_id = inv_movie_mapper[j]
-            movie_bayesian_avg = movie_stats[movie_stats['movieId'] == movie_id]['bayesian_avg']
-            X[i, j] = movie_bayesian_avg # masking value with bayesian average rating of that movie
-            # this increases MAE and RMSE (reconstruction error) but higher precision and recall than masking with 0
+            X[i, j] = 0 # masking value
             test_ratings.append(rating)
         if len(nonzero_coords) == twenty_percent_of_nnz:
             break
     test_data_coords.append(nonzero_coords)
 
 X_arr = None
+
 # Optimize n_components using Frobenius norm
 # errors = []
 # components_range = range(5, 100, 5) # Test components from 5 to 100
