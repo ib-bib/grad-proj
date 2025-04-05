@@ -10,3 +10,4 @@ __pycache__/
 images/
 .env
 .vscode
+tmdb_posters
