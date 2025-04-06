@@ -3,9 +3,9 @@ import csv
 import re
 
 # Define file paths
-movies_csv_path = "data/movies.csv"
+movies_csv_path = "missing_posters3.csv"
 images_dir = "images/"
-missing_posters_csv_path = "missing_posters.csv"
+missing_posters_csv_path = "missing_posters4.csv"
 
 def parse_movie_title(movie_title):
     """Extracts the title and release year from the movie title field."""

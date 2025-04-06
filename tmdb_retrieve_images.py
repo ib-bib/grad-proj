@@ -9,9 +9,9 @@ load_dotenv()
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
 # File paths
-CSV_FILE = "missing_posters.csv"
+CSV_FILE = "missing_posters3.csv"
 OUTPUT_DIR = "tmdb_posters"
-TRACKER_FILE = "last_tmdb_processed.txt"
+TRACKER_FILE = "last_tmdb_processed2.txt"
 
 # TMDB API base URLs
 SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
@@ -36,12 +36,11 @@ def update_last_processed_id(movie_id):
     with open(TRACKER_FILE, "w") as f:
         f.write(str(movie_id))
 
-def fetch_poster(movie_id, title, release_year):
+def fetch_poster(movie_id, title):
     """Query TMDB and download the poster image for the given movie."""
     params = {
         "api_key": TMDB_API_KEY,
         "query": title,
-        "year": release_year
     }
     response = requests.get(SEARCH_URL, params=params)
     data = response.json()
@@ -50,7 +49,7 @@ def fetch_poster(movie_id, title, release_year):
         poster_path = data["results"][0].get("poster_path")
         if poster_path:
             image_url = f"{IMAGE_BASE_URL}{poster_path}"
-            safe_title = sanitize_filename(f"{title} {release_year}")
+            safe_title = sanitize_filename(f"{title}")
             filename = f"{movie_id}__{safe_title}.jpg"
             filepath = os.path.join(OUTPUT_DIR, filename)
 
@@ -61,9 +60,9 @@ def fetch_poster(movie_id, title, release_year):
             print(f"✅ Downloaded: {filename}")
             return True
         else:
-            print(f"⚠️ No poster found for {title} ({release_year})")
+            print(f"⚠️ No poster found for {title}")
     else:
-        print(f"❌ No TMDB result for: {title} ({release_year})")
+        print(f"❌ No TMDB result for: {title}")
     return False
 
 def download_missing_posters():
@@ -77,8 +76,7 @@ def download_missing_posters():
             if movie_id <= last_id:
                 continue  # Skip already processed
             title = row["title"]
-            release_year = row["release_year"]
-            if fetch_poster(movie_id, title, release_year):
+            if fetch_poster(movie_id, title):
                 update_last_processed_id(movie_id)
 
 
