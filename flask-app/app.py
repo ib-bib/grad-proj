@@ -67,6 +67,11 @@ def search(movie) -> dict[str, int]:
     movie_id = int(cbf_model['title_id'][actual_title])
     return jsonify({"movie_title": actual_title, "movie_id": movie_id})
 
+@app.route("/get_title/<movie_id>")
+def get_title(movie_id):
+    movie_id = int(movie_id)
+    return jsonify({"movie_title": cbf_model['id_title'], "movie_id": movie_id})
+
 @app.route("/cf/<movie_id>/<cf_weight>", methods=['GET'])
 def get_cf_recs(movie_id, cf_weight):
     movie_id = int(movie_id)
