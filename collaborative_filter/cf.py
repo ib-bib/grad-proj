@@ -9,6 +9,7 @@ from scipy.special import expit  # Sigmoid function
 from fuzzywuzzy import process
 from kneed import KneeLocator
 import pickle
+from joblib import Parallel, delayed
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -144,33 +145,33 @@ for i, user in enumerate(X_arr):
 X_arr = None
 
 # Optimize n_components using Frobenius norm
-# errors = []
-# components_range = range(5, 100, 5) # Test components from 5 to 100
-# for n in components_range:
-#     svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
-#     H = svd.fit_transform(X.T)
-#     W = svd.components_
-#     reconstructed_X = np.dot(W.T, H.T)
-#     error = np.linalg.norm(X - reconstructed_X, ord='fro')  # Frobenius norm of reconstruction error
-#     errors.append(error)
+def compute_frobenius_error(n):
+    svd = TruncatedSVD(n_components=n, random_state=42, n_iter=10)
+    H = svd.fit_transform(X.T)
+    W = svd.components_
+    reconstructed_X = np.dot(W.T, H.T)
+    return np.linalg.norm(X - reconstructed_X, ord='fro')
 
-# # Find elbow point automatically
-# knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
-# optimal_n = knee_locator.knee
-# print(f'Optimal number of components: {optimal_n}') # output was 35
+components_range = range(5, 100, 5)
+errors = Parallel(n_jobs=-1)(delayed(compute_frobenius_error)(n) for n in components_range)
 
-# # Plot the elbow curve
-# plt.figure(figsize=(8, 5))
-# plt.plot(components_range, errors, marker='o')
-# # Highlight the elbow point
-# plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
-# # Dashed line at elbow
-# plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
-# plt.ylabel('Frobenius Norm')
-# plt.xlabel('Components')
-# plt.title('Elbow graph for optimal number of latent')
-# plt.grid()
-# plt.show()
+# Find elbow point automatically
+knee_locator = KneeLocator(components_range, errors, curve='convex', direction='decreasing')
+optimal_n = knee_locator.knee
+print(f'Optimal number of components: {optimal_n}') # output was 35
+
+# Plot the elbow curve
+plt.figure(figsize=(8, 5))
+plt.plot(components_range, errors, marker='o')
+# Highlight the elbow point
+plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
+# Dashed line at elbow
+plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
+plt.ylabel('Frobenius Norm')
+plt.xlabel('Components')
+plt.title('Elbow graph for optimal number of latent')
+plt.grid()
+plt.show()
 
 # Matrix Factorization using the optimal n of components
 svd = TruncatedSVD(n_components=35, random_state=42, n_iter=10) # hard-coded 35 components (elbow point)
@@ -207,7 +208,7 @@ num_users = 10
 # Number of movies whose rating is >= 3.5 which we get to generate recommendations
 num_movies_per_user = 10
 # Number of recommendations we generate
-k = 20
+k = 100
 # Find the top users who have rated the most movies (descending from highest rating downwards)
 user_rating_counts = ratings_df.groupby('userId').size().sort_values(ascending=False)
 top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
@@ -217,28 +218,31 @@ recall_values = []
 # map movie titles to movie IDs
 movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
 
-# Iterate through each top user
-for user_id in top_users:
-    # Get all movies rated by this user
+def evaluate_user_precision_recall(user_id):
     user_ratings = ratings_df[ratings_df['userId'] == user_id]
-    top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()  # First n movies
+    rated_movie_ids = user_ratings['movieId'].tolist()
 
-    # Get recommended movies
-    recommended_movies = []
+    top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()
 
+    recommended_movies = set()
     for movie_id in top_movies:
         similar_movies = find_similar_movies(movie_id, M_comp_mtrx, movie_mapper, inv_movie_mapper, k=k)
-        for similar_movie_id in similar_movies:
-            recommended_movies.append(similar_movie_id)  # Add recommendations to list
+        # Filter recommendations: only include if the user has rated them before
+        for sim_id in similar_movies:
+            if sim_id in rated_movie_ids:
+                recommended_movies.add(sim_id)
 
-    # Get relevant movies (rated 3.5 or above by the user)
     relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].to_list()
 
-    # Compute precision
     prec = precision(recommended_movies, relevant_movies)
     rec = recall(recommended_movies, relevant_movies)
-    precision_values.append(prec)
-    recall_values.append(rec)
+    return prec, rec
+
+# Run in parallel
+results = Parallel(n_jobs=-1)(delayed(evaluate_user_precision_recall)(user_id) for user_id in top_users)
+
+# Split results
+precision_values, recall_values = zip(*results)
 
 mean_precision = np.mean(precision_values)
 print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_precision:.4f}")
