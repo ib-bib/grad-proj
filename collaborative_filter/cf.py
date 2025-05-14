@@ -167,6 +167,8 @@ plt.plot(components_range, errors, marker='o')
 plt.scatter(optimal_n, knee_locator.knee_y, color='red', s=150, edgecolors='black', label=f'Elbow at n={optimal_n}', zorder=3)
 # Dashed line at elbow
 plt.axvline(optimal_n, color='r', linestyle='--', alpha=0.6)
+# Annotate the optimal number of components above the red dot
+plt.text(optimal_n, knee_locator.knee_y + 24, f'n = {optimal_n}', ha='center', color='red', fontsize=10)
 plt.ylabel('Frobenius Norm')
 plt.xlabel('Components')
 plt.title('Elbow graph for optimal number of latent')
