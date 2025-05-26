@@ -204,56 +204,56 @@ print(f'MAE: {mean_absolute_error(test_ratings, predictions):.2f}')
 # Root Mean Square Error
 print(f'RMSE: {root_mean_square_error(test_ratings, predictions):.2f}')
 
-# Precision@k for the top power users:
-# Number of users to evaluate
-num_users = 10
-# Number of movies whose rating is >= 3.5 which we get to generate recommendations
-num_movies_per_user = 10
-# Number of recommendations we generate
-k = 100
-# Find the top users who have rated the most movies (descending from highest rating downwards)
-user_rating_counts = ratings_df.groupby('userId').size().sort_values(ascending=False)
-top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
+# # Precision@k for the top power users:
+# # Number of users to evaluate
+# num_users = 10
+# # Number of movies whose rating is >= 3.5 which we get to generate recommendations
+# num_movies_per_user = 100
+# # Number of recommendations we generate
+# k = 10
+# # Find the top users who have rated the most movies (descending from highest rating downwards)
+# user_rating_counts = ratings_df.groupby('userId').size().sort_values(ascending=False)
+# top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
 
-precision_values = []
-recall_values = []
-# map movie titles to movie IDs
-movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
+# precision_values = []
+# recall_values = []
+# # map movie titles to movie IDs
+# movie_titles = dict(zip(movies_df['movieId'], movies_df['title']))
 
-def evaluate_user_precision_recall(user_id):
-    user_ratings = ratings_df[ratings_df['userId'] == user_id]
-    rated_movie_ids = user_ratings['movieId'].tolist()
+# def evaluate_user_precision_recall(user_id):
+#     user_ratings = ratings_df[ratings_df['userId'] == user_id]
+#     rated_movie_ids = user_ratings['movieId'].tolist()
 
-    top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()
+#     top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()
 
-    recommended_movies = set()
-    for movie_id in top_movies:
-        similar_movies = find_similar_movies(movie_id, M_comp_mtrx, movie_mapper, inv_movie_mapper, k=k)
-        # Filter recommendations: only include if the user has rated them before
-        for sim_id in similar_movies:
-            if sim_id in rated_movie_ids:
-                recommended_movies.add(sim_id)
+#     recommended_movies = set()
+#     for movie_id in top_movies:
+#         similar_movies = find_similar_movies(movie_id, M_comp_mtrx, movie_mapper, inv_movie_mapper, k=k)
+#         # Filter recommendations: only include if the user has rated them before
+#         for sim_id in similar_movies:
+#             if sim_id in rated_movie_ids:
+#                 recommended_movies.add(sim_id)
 
-    relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].to_list()
+#     relevant_movies = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].to_list()
 
-    prec = precision(recommended_movies, relevant_movies)
-    rec = recall(recommended_movies, relevant_movies)
-    return prec, rec
+#     prec = precision(recommended_movies, relevant_movies)
+#     rec = recall(recommended_movies, relevant_movies)
+#     return prec, rec
 
-# Run in parallel
-results = Parallel(n_jobs=-1)(delayed(evaluate_user_precision_recall)(user_id) for user_id in top_users)
+# # Run in parallel
+# results = Parallel(n_jobs=-1)(delayed(evaluate_user_precision_recall)(user_id) for user_id in top_users)
 
-# Split results
-precision_values, recall_values = zip(*results)
+# # Split results
+# precision_values, recall_values = zip(*results)
 
-mean_precision = np.mean(precision_values)
-print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_precision:.4f}")
+# mean_precision = np.mean(precision_values)
+# print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_precision:.4f}")
 
-mean_recall = np.mean(recall_values)
-print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_recall:.4f}")
+# mean_recall = np.mean(recall_values)
+# print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_recall:.4f}")
 
-f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
-print(f"F1-Score {f1_score:.4f}")
+# f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
+# print(f"F1-Score {f1_score:.4f}")
 
 # Save the trained model, feature matrix and mappings
 model_data = {

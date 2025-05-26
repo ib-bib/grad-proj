@@ -164,17 +164,17 @@ knn_model.fit(sparse_features)
 
 # Precision@k for the top power users:
 # Number of users to evaluate
-num_users = 10
-# Number of movies whose rating is >= 3.5 which we get to generate recommendations
-num_movies_per_user = 10
-# Number of recommendations we generate
-k = 100
-# Find the top users who have rated the most movies (descending from highest rating downwards)
-user_rating_counts = ratings.groupby('userId').size().sort_values(ascending=False)
-top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
+# num_users = 10
+# # Number of movies whose rating is >= 3.5 which we get to generate recommendations
+# num_movies_per_user = 100
+# # Number of recommendations we generate
+# k = 10
+# # Find the top users who have rated the most movies (descending from highest rating downwards)
+# user_rating_counts = ratings.groupby('userId').size().sort_values(ascending=False)
+# top_users = user_rating_counts.index[:num_users]  # Get top N users with most ratings
 
-precision_values = []
-recall_values = []
+# precision_values = []
+# recall_values = []
 
 # Iterate through each top user
 # for user_id in top_users:
@@ -200,41 +200,41 @@ recall_values = []
 #     recall_values.append(rec)
 # ratings_dict = ratings.groupby('userId').apply(lambda x: x.set_index('movieId')['rating'].to_dict()).to_dict()
 
-def process_user(user_id):
-    # Get all movies rated by this user
-    user_ratings = ratings[ratings['userId'] == user_id]
-    rated_movie_ids = user_ratings['movieId'].tolist()
+# def process_user(user_id):
+#     # Get all movies rated by this user
+#     user_ratings = ratings[ratings['userId'] == user_id]
+#     rated_movie_ids = user_ratings['movieId'].tolist()
 
-    # Select positively rated movies as seeds
-    top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()
+#     # Select positively rated movies as seeds
+#     top_movies = user_ratings[user_ratings['rating'] >= 3.5].head(num_movies_per_user)['movieId'].tolist()
 
-    recommended_movies_ids = []
-    for movie_id in top_movies:
-        similar_movies = get_content_based_recommendations(movie_titles[movie_id], k)
-        recommended_movies_ids.extend([movie_ids[similar_movie] for similar_movie in similar_movies])
+#     recommended_movies_ids = []
+#     for movie_id in top_movies:
+#         similar_movies = get_content_based_recommendations(movie_titles[movie_id], k)
+#         recommended_movies_ids.extend([movie_ids[similar_movie] for similar_movie in similar_movies])
 
-    # Filter recommendations: only keep those that the user has rated
-    rated_recommended_movies = [movie_id for movie_id in recommended_movies_ids if movie_id in rated_movie_ids]
+#     # Filter recommendations: only keep those that the user has rated
+#     rated_recommended_movies = [movie_id for movie_id in recommended_movies_ids if movie_id in rated_movie_ids]
 
-    # Define relevant items: movies rated >= 3.5 by the user
-    relevant_movies_ids = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].tolist()
+#     # Define relevant items: movies rated >= 3.5 by the user
+#     relevant_movies_ids = user_ratings[user_ratings['rating'] >= 3.5]['movieId'].tolist()
 
-    return precision(rated_recommended_movies, relevant_movies_ids), recall(rated_recommended_movies, relevant_movies_ids)
+#     return precision(rated_recommended_movies, relevant_movies_ids), recall(rated_recommended_movies, relevant_movies_ids)
 
-# Run in parallel
-results = Parallel(n_jobs=-1)(delayed(process_user)(user_id) for user_id in top_users)
+# # Run in parallel
+# results = Parallel(n_jobs=-1)(delayed(process_user)(user_id) for user_id in top_users)
 
-# Unpack results
-precision_values, recall_values = zip(*results)
+# # Unpack results
+# precision_values, recall_values = zip(*results)
 
-mean_precision = np.mean(precision_values)
-print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_precision:.4f}")
+# mean_precision = np.mean(precision_values)
+# print(f"Mean average Precision@{k} of the top {num_users} power users is {mean_precision:.4f}")
 
-mean_recall = np.mean(recall_values)
-print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_recall:.4f}")
+# mean_recall = np.mean(recall_values)
+# print(f"Mean average Recall@{k} of the top {num_users} power users is {mean_recall:.4f}")
 
-f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
-print(f"F1-Score {f1_score:.4f}")
+# f1_score = 2 * (mean_precision * mean_recall) / (mean_precision + mean_recall)
+# print(f"F1-Score {f1_score:.4f}")
 
 # Save the trained model, feature matrix and mappings
 model_data = {

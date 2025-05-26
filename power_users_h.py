@@ -3,10 +3,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Load ratings
-ratings = pd.read_csv('../data/ratings.csv')
+ratings = pd.read_csv('./data/ratings.csv')
 
 # Get top 10 users with most ratings
-user_rating_counts = ratings['userId'].value_counts().nlargest(10)
+user_rating_counts = ratings['userId'].value_counts().nlargest(1) # 2698 largest
 top_users_df = user_rating_counts.reset_index()
 top_users_df.columns = ['userId', 'num_ratings']
 
