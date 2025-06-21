@@ -143,7 +143,7 @@ feature_names = tfidf_vectorizer.get_feature_names_out()
 # Convert TF-IDF feature matrix to DataFrame
 tfidf_df = pd.DataFrame(processed_features_raw.toarray(), columns=feature_names)
 # Save the extracted TF-IDF features as CSV
-# tfidf_df.to_csv("tfidf_features.csv", index=False)
+tfidf_df.to_csv("tfidf_features.csv", index=False)
 
 # Sum occurrences of each feature across all movies
 feature_counts = tfidf_df.sum(axis=0).sort_values(ascending=False)

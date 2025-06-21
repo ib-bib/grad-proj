@@ -177,8 +177,9 @@ plt.show()
 
 # Matrix Factorization using the optimal n of components
 svd = TruncatedSVD(n_components=35, random_state=42, n_iter=10) # hard-coded 35 components (elbow point)
-M_comp_mtrx = svd.fit_transform(X.T) # movies x latent features (9274 movies, 26 components)
-U_comp_mtrx = svd.components_ # latent features (of the movies) x users (26 x 610)
+M_comp_mtrx = svd.fit_transform(X.T) # movies x latent features (9274 movies, 35 components)
+svd.inverse_transform(M)
+U_comp_mtrx = svd.components_ # latent features (of the movies) x users (35 x 610)
 
 # nearest neighbors
 kNN = NearestNeighbors(algorithm="brute", metric='cosine')
